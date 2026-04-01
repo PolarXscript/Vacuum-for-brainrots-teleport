@@ -1,7 +1,11 @@
 -- =====================
 --    LOAD RAYFIELD
 -- =====================
-local real_key = "mbg1" game:HttpGet("https://raw.githubusercontent.com/PolarXscript/Vacuum-for-brainrots-teleport/main/key.txt"):gsub("%s+", "")
+local real_key = game:HttpGet("https://pastefy.app/kKYjRxTo/raw")
+print("REAL KEY:", real_key)
+
+local script_key = "mbg1"
+print("SCRIPT KEY:", script_key)
 
 if script_key ~= real_key then
     return warn("Key salah!")
