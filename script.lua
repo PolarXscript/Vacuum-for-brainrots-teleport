@@ -1,20 +1,13 @@
 -- =====================
 --    LOAD RAYFIELD
 -- =====================
-local real_key = game:HttpGet("https://pastefy.app/kKYjRxTo/raw")
-print("REAL KEY:", real_key)
-
-local script_key = "mbg1"
-print("SCRIPT KEY:", script_key)
-
-if script_key ~= real_key then
-    return warn("Key salah!")
-end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- =====================
 --    KEY SYSTEM MANUAL
 -- =====================
+local CORRECT_KEY  = "X script"
+local keyPassed    = false
 
 -- Bikin GUI key manual
 local keyGui = Instance.new("ScreenGui")
@@ -43,7 +36,7 @@ local title = Instance.new("TextLabel")
 title.Size                  = UDim2.new(1, 0, 0, 40)
 title.Position              = UDim2.new(0, 0, 0, 10)
 title.BackgroundTransparency = 1
-title.Text                  = "🔑 X script - Key System"
+title.Text                  = "🔑 My Hub - Key System"
 title.TextColor3            = Color3.fromRGB(255, 255, 255)
 title.TextSize              = 18
 title.Font                  = Enum.Font.GothamBold
@@ -129,7 +122,7 @@ local Window = Rayfield:CreateWindow({
    LoadingSubtitle = "by X script",
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "Xscript",
+      FolderName = "MyHub",
       FileName = "Config"
    },
    Discord = {
