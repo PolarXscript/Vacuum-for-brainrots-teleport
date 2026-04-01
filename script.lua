@@ -1,13 +1,16 @@
 -- =====================
 --    LOAD RAYFIELD
 -- =====================
+local real_key = game:HttpGet("https://raw.githubusercontent.com/PolarXscript/Vacuum-for-brainrots-teleport/main/key.txt"):gsub("%s+", "")
+
+if script_key ~= real_key then
+    return warn("Key salah!")
+end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- =====================
 --    KEY SYSTEM MANUAL
 -- =====================
-local CORRECT_KEY  = "X script"
-local keyPassed    = false
 
 -- Bikin GUI key manual
 local keyGui = Instance.new("ScreenGui")
