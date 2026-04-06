@@ -6,7 +6,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- =====================
 --    KEY SYSTEM MANUAL
 -- =====================
-local CORRECT_KEY = "X script"
+local CORRECT_KEY = "X script PREMIUM"
 local keyPassed   = false
 
 local keyGui = Instance.new("ScreenGui")
