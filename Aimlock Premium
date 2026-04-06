@@ -134,8 +134,7 @@ local Window = Rayfield:CreateWindow({
 --       TABS
 -- =====================
 local PlayerTab = Window:CreateTab("Player", 4483362458)
-local VisualTab = Window:CreateTab("Visual", 4483362458)
-local MiscTab   = Window:CreateTab("Misc",   4483362458)
+local CombatTab = Window:CreateTab("Combat", 4483362458)
 
 -- =====================
 --    SERVICES
@@ -149,149 +148,6 @@ local UIS         = game:GetService("UserInputService")
 --   DETECT MOBILE
 -- =====================
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
-
-
--- =====================
---    ESP + HEALTH BAR
--- =====================
-local espEnabled = false
-local espData    = {}
-
-local function createESP(player)
-   if player == LocalPlayer then return end
-
-   local function buildESP()
-      task.wait(0.5)
-      if not player.Character then return end
-      local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-      local hum = player.Character:FindFirstChild("Humanoid")
-      if not hrp or not hum then return end
-
-      if espData[player] then
-         if espData[player].highlight then espData[player].highlight:Destroy() end
-         if espData[player].billboard then espData[player].billboard:Destroy() end
-      end
-
-      local highlight               = Instance.new("Highlight")
-      highlight.FillTransparency    = 1
-      highlight.OutlineColor        = Color3.fromRGB(255, 255, 255)
-      highlight.OutlineTransparency = 0
-      highlight.Parent              = player.Character
-
-      local billboard = Instance.new("BillboardGui")
-      billboard.Size        = UDim2.new(0, 160, 0, 80)
-      billboard.StudsOffset = Vector3.new(-4, 2, 0)
-      billboard.AlwaysOnTop = true
-      billboard.Parent      = hrp
-
-      local nameLabel = Instance.new("TextLabel")
-      nameLabel.Size                   = UDim2.new(1, 0, 0, 16)
-      nameLabel.Position               = UDim2.new(0, 0, 0, 0)
-      nameLabel.BackgroundTransparency = 1
-      nameLabel.Text                   = player.Name
-      nameLabel.TextColor3             = Color3.fromRGB(255, 255, 255)
-      nameLabel.TextSize               = 12
-      nameLabel.Font                   = Enum.Font.GothamBold
-      nameLabel.TextStrokeTransparency = 0
-      nameLabel.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
-      nameLabel.Parent                 = billboard
-
-      local hpText = Instance.new("TextLabel")
-      hpText.Size                   = UDim2.new(1, 0, 0, 14)
-      hpText.Position               = UDim2.new(0, 0, 0, 16)
-      hpText.BackgroundTransparency = 1
-      hpText.Text                   = "["..math.floor(hum.Health).."]"
-      hpText.TextColor3             = Color3.fromRGB(255, 255, 255)
-      hpText.TextSize               = 11
-      hpText.Font                   = Enum.Font.Gotham
-      hpText.TextStrokeTransparency = 0
-      hpText.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
-      hpText.Parent                 = billboard
-
-      local hpBg = Instance.new("Frame")
-      hpBg.Size                   = UDim2.new(0, 8, 0, 60)
-      hpBg.Position               = UDim2.new(0, -14, 0, 10)
-      hpBg.BackgroundColor3       = Color3.fromRGB(30, 30, 30)
-      hpBg.BorderSizePixel        = 0
-      hpBg.Parent                 = billboard
-      Instance.new("UICorner", hpBg).CornerRadius = UDim.new(0, 3)
-
-      local function makeGradientBar(pct)
-         for _, c in pairs(hpBg:GetChildren()) do
-            if c:IsA("Frame") then c:Destroy() end
-         end
-         local fill = Instance.new("Frame")
-         fill.Size                 = UDim2.new(1, 0, pct, 0)
-         fill.Position             = UDim2.new(0, 0, 1 - pct, 0)
-         fill.BackgroundColor3     = Color3.fromRGB(255, 255, 255)
-         fill.BorderSizePixel      = 0
-         fill.Parent               = hpBg
-         Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 3)
-         local gradient = Instance.new("UIGradient")
-         gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0,   Color3.fromRGB(0,   220, 50)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 200, 0)),
-            ColorSequenceKeypoint.new(1,   Color3.fromRGB(255, 40,  40)),
-         })
-         gradient.Rotation = 90
-         gradient.Parent   = fill
-      end
-
-      makeGradientBar(hum.Health / hum.MaxHealth)
-
-      local distLabel = Instance.new("TextLabel")
-      distLabel.Size                   = UDim2.new(1, 0, 0, 13)
-      distLabel.Position               = UDim2.new(0, 0, 0, 62)
-      distLabel.BackgroundTransparency = 1
-      distLabel.Text                   = "0m"
-      distLabel.TextColor3             = Color3.fromRGB(200, 200, 200)
-      distLabel.TextSize               = 10
-      distLabel.Font                   = Enum.Font.Gotham
-      distLabel.TextStrokeTransparency = 0
-      distLabel.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
-      distLabel.Parent                 = billboard
-
-      espData[player] = {
-         highlight       = highlight,
-         billboard       = billboard,
-         hpBg            = hpBg,
-         hpText          = hpText,
-         distLabel       = distLabel,
-         hum             = hum,
-         hrp             = hrp,
-         makeGradientBar = makeGradientBar,
-      }
-
-      hum.HealthChanged:Connect(function(hp)
-         if not espEnabled or not espData[player] then return end
-         makeGradientBar(hp / hum.MaxHealth)
-         hpText.Text = "["..math.floor(hp).."]"
-      end)
-   end
-
-   buildESP()
-   player.CharacterAdded:Connect(function()
-      if espEnabled then buildESP() end
-   end)
-end
-
-local function removeESP(player)
-   if espData[player] then
-      if espData[player].highlight then espData[player].highlight:Destroy() end
-      if espData[player].billboard then espData[player].billboard:Destroy() end
-      espData[player] = nil
-   end
-end
-
-RS.RenderStepped:Connect(function()
-   if not espEnabled then return end
-   local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-   for player, data in pairs(espData) do
-      if data.hrp and data.distLabel and myHrp then
-         data.distLabel.Text = math.floor((myHrp.Position - data.hrp.Position).Magnitude).."m"
-      end
-   end
-end)
 
 -- =====================
 --   GET NEAREST PLAYER
@@ -347,7 +203,8 @@ local function createAimButton()
    btn.Position               = UDim2.new(1, -75, 0.5, -30)
    btn.BackgroundColor3       = Color3.fromRGB(20, 20, 20)
    btn.BackgroundTransparency = 0.3
-   btn.Text                   = "🎯\nAIM"
+   btn.Text                   = "🎯
+AIM"
    btn.TextColor3             = Color3.fromRGB(255, 255, 255)
    btn.TextSize               = 13
    btn.Font                   = Enum.Font.GothamBold
@@ -461,115 +318,14 @@ end
 pcall(applySilentAim)
 
 -- =====================
---    PLAYER TAB
+--      COMBAT TAB
 -- =====================
-local _ = PlayerTab:CreateSection("Player Controls")
+local _ = CombatTab:CreateSection("Aim Features")
 
-PlayerTab:CreateToggle({
-   Name = "Fly", CurrentValue = false, Flag = "FlyToggle",
-   Callback = function(value)
-      flyEnabled = value
-      if value then
-         startFly()
-         local hint = isMobile and "Thumbstick = gerak | Jump = naik | ▼ = turun" or "WASD = gerak | Space = naik | Ctrl = turun"
-         Rayfield:Notify({ Title = "Fly ON ✅", Content = hint, Duration = 4 })
-      else
-         stopFly()
-         Rayfield:Notify({ Title = "Fly OFF ❌", Content = "Fly dimatikan!", Duration = 3 })
-      end
-   end,
-})
-
-PlayerTab:CreateSlider({
-   Name = "Fly Speed", Range = {10, 200}, Increment = 10,
-   Suffix = "Speed", CurrentValue = 50, Flag = "FlySpeed",
-   Callback = function(value)
-      flySpeed = value
-      Rayfield:Notify({ Title = "Fly Speed", Content = "Kecepatan: "..value, Duration = 2 })
-   end,
-})
-
-PlayerTab:CreateToggle({
-   Name = "Noclip", CurrentValue = false, Flag = "NoclipToggle",
-   Callback = function(value)
-      noclipEnabled = value
-      if value then startNoclip(); Rayfield:Notify({ Title = "Noclip ON ✅", Content = "Kamu bisa tembus dinding!", Duration = 3 })
-      else stopNoclip(); Rayfield:Notify({ Title = "Noclip OFF ❌", Content = "Collision dikembalikan!", Duration = 3 }) end
-   end,
-})
-
-PlayerTab:CreateToggle({
-   Name = "God Mode", CurrentValue = false, Flag = "GodToggle",
-   Callback = function(value)
-      godEnabled = value
-      if value then startGod(); Rayfield:Notify({ Title = "God Mode ON ✅", Content = "Kamu sekarang kebal!", Duration = 3 })
-      else stopGod(); Rayfield:Notify({ Title = "God Mode OFF ❌", Content = "God Mode dimatikan!", Duration = 3 }) end
-   end,
-})
-
-PlayerTab:CreateButton({
-   Name = "Reset Character",
-   Callback = function()
-      local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-      if hum then hum.Health = 0 end
-      Rayfield:Notify({ Title = "Reset", Content = "Character di-reset!", Duration = 3 })
-   end,
-})
-
-local _ = PlayerTab:CreateSection("Teleport Area")
-
-PlayerTab:CreateButton({
-   Name = "Teleport ke Spawn",
-   Callback = function()
-      local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-      if hrp then hrp.CFrame = CFrame.new(-36, 58, 79); Rayfield:Notify({ Title = "Teleport ✅", Content = "Berhasil teleport ke Spawn!", Duration = 3 }) end
-   end,
-})
-
-PlayerTab:CreateButton({
-   Name = "Teleport ke Celestial",
-   Callback = function()
-      local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-      if hrp then hrp.CFrame = CFrame.new(-1097, 58, 3); Rayfield:Notify({ Title = "Teleport ✅", Content = "Berhasil teleport ke Celestial!", Duration = 3 }) end
-   end,
-})
-
-PlayerTab:CreateButton({
-   Name = "📍 Cek Posisi Saya",
-   Callback = function()
-      local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-      if hrp then
-         local pos = hrp.Position
-         local msg = "X: "..math.floor(pos.X).." | Y: "..math.floor(pos.Y).." | Z: "..math.floor(pos.Z)
-         print("[POSISI] "..msg)
-         Rayfield:Notify({ Title = "Posisi Kamu 📍", Content = msg, Duration = 6 })
-      end
-   end,
-})
-
--- =====================
---      COMBAT
--- =====================
-local _ = PlayerTab:CreateSection("Combat")
-
-PlayerTab:CreateToggle({
-   Name = "ESP + Health Bar", CurrentValue = false, Flag = "ESPToggle",
-   Callback = function(value)
-      espEnabled = value
-      if value then
-         for _, player in pairs(Players:GetPlayers()) do createESP(player) end
-         Players.PlayerAdded:Connect(createESP)
-         Players.PlayerRemoving:Connect(removeESP)
-         Rayfield:Notify({ Title = "ESP ON ✅", Content = "ESP + bar darah aktif!", Duration = 3 })
-      else
-         for _, player in pairs(Players:GetPlayers()) do removeESP(player) end
-         Rayfield:Notify({ Title = "ESP OFF ❌", Content = "ESP dimatikan!", Duration = 3 })
-      end
-   end,
-})
-
-PlayerTab:CreateToggle({
-   Name = "Aim Lock", CurrentValue = false, Flag = "AimlockToggle",
+CombatTab:CreateToggle({
+   Name = "Aim Lock", 
+   CurrentValue = false, 
+   Flag = "AimlockToggle",
    Callback = function(value)
       aimlockEnabled = value
       if value then
@@ -583,17 +339,23 @@ PlayerTab:CreateToggle({
    end,
 })
 
-PlayerTab:CreateSlider({
-   Name = "Aim Smoothness", Range = {1, 10}, Increment = 1,
-   Suffix = "", CurrentValue = 2, Flag = "AimSmooth",
+CombatTab:CreateSlider({
+   Name = "Aim Smoothness", 
+   Range = {1, 10}, 
+   Increment = 1,
+   Suffix = "", 
+   CurrentValue = 2, 
+   Flag = "AimSmooth",
    Callback = function(value)
       smoothness = value / 10
       Rayfield:Notify({ Title = "Smoothness", Content = "Smooth: "..value, Duration = 2 })
    end,
 })
 
-PlayerTab:CreateToggle({
-   Name = "Silent Aim", CurrentValue = false, Flag = "SilentAim",
+CombatTab:CreateToggle({
+   Name = "Silent Aim", 
+   CurrentValue = false, 
+   Flag = "SilentAim",
    Callback = function(value)
       silentAimEnabled   = value
       silentLine.Visible = value
@@ -607,99 +369,17 @@ PlayerTab:CreateToggle({
 })
 
 -- =====================
---    VISUAL TAB
+--    PLAYER TAB (MINIMAL)
 -- =====================
-local _ = VisualTab:CreateSection("Visual Controls")
+local _ = PlayerTab:CreateSection("Player Controls")
 
-VisualTab:CreateButton({
-   Name = "Fullbright",
+PlayerTab:CreateButton({
+   Name = "Reset Character",
    Callback = function()
-      game.Lighting.Brightness = 10
-      game.Lighting.ClockTime  = 14
-      Rayfield:Notify({ Title = "Fullbright", Content = "Lighting ke maksimal!", Duration = 3 })
-   end,
-})
-
-VisualTab:CreateButton({
-   Name = "Reset Lighting",
-   Callback = function()
-      game.Lighting.Brightness = 1
-      game.Lighting.ClockTime  = 14
-      Rayfield:Notify({ Title = "Reset Lighting", Content = "Lighting normal!", Duration = 3 })
-   end,
-})
-
--- =====================
---      MISC TAB
--- =====================
-local _ = MiscTab:CreateSection("Misc")
-
-MiscTab:CreateButton({
-   Name = "Copy Player Name",
-   Callback = function()
-      local name = LocalPlayer.Name
-      setclipboard(name)
-      Rayfield:Notify({ Title = "Copied!", Content = "Username: "..name.." disalin!", Duration = 3 })
-   end,
-})
-
-MiscTab:CreateButton({
-   Name = "Rejoin Server",
-   Callback = function()
-      game:GetService("TeleportService"):Teleport(game.PlaceId)
-   end,
-})
-
-local _ = MiscTab:CreateSection("Team Info")
-
-MiscTab:CreateButton({
-   Name = "Cek Team Saya",
-   Callback = function()
-      if LocalPlayer.Team then
-         Rayfield:Notify({ Title = "Team Kamu 🏳️", Content = "Team: "..LocalPlayer.Team.Name.." | Warna: "..tostring(LocalPlayer.TeamColor), Duration = 5 })
-      else
-         Rayfield:Notify({ Title = "Team Kamu", Content = "Kamu tidak ada di team manapun!", Duration = 3 })
-      end
-   end,
-})
-
-MiscTab:CreateButton({
-   Name = "Cek Team Semua Player",
-   Callback = function()
-      for _, player in pairs(Players:GetPlayers()) do
-         print("[Team] "..player.Name.." → "..(player.Team and player.Team.Name or "No Team"))
-      end
-      Rayfield:Notify({ Title = "Team List 📋", Content = "Cek console executor!", Duration = 5 })
-   end,
-})
-
-MiscTab:CreateButton({
-   Name = "Cek Team Player Terdekat",
-   Callback = function()
-      local char = LocalPlayer.Character
-      if not char then return end
-      local hrp = char:FindFirstChild("HumanoidRootPart")
-      if not hrp then return end
-
-      local closestPlayer = nil
-      local closestDist   = math.huge
-
-      for _, player in pairs(Players:GetPlayers()) do
-         if player ~= LocalPlayer and player.Character then
-            local otherHrp = player.Character:FindFirstChild("HumanoidRootPart")
-            if otherHrp then
-               local dist = (hrp.Position - otherHrp.Position).Magnitude
-               if dist < closestDist then closestDist = dist; closestPlayer = player end
-            end
-         end
-      end
-
-      if closestPlayer then
-         local teamName = closestPlayer.Team and closestPlayer.Team.Name or "No Team"
-         local isEnemy  = LocalPlayer.Team ~= closestPlayer.Team
-         Rayfield:Notify({ Title = "Player Terdekat 🎯", Content = closestPlayer.Name.." | Team: "..teamName.." | "..(isEnemy and "⚔️ MUSUH!" or "🤝 TEMAN!"), Duration = 5 })
-      else
-         Rayfield:Notify({ Title = "Tidak Ada Player", Content = "Tidak ada player di sekitar!", Duration = 3 })
+      local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+      if hum then 
+         hum.Health = 0 
+         Rayfield:Notify({ Title = "Reset", Content = "Character di-reset!", Duration = 3 })
       end
    end,
 })
