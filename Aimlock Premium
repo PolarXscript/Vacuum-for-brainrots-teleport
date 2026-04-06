@@ -1,3 +1,4 @@
+
 -- =====================
 --    LOAD RAYFIELD
 -- =====================
@@ -134,7 +135,8 @@ local Window = Rayfield:CreateWindow({
 --       TABS
 -- =====================
 local PlayerTab = Window:CreateTab("Player", 4483362458)
-local CombatTab = Window:CreateTab("Combat", 4483362458)
+local VisualTab = Window:CreateTab("Visual", 4483362458)
+local MiscTab   = Window:CreateTab("Misc",   4483362458)
 
 -- =====================
 --    SERVICES
@@ -148,6 +150,346 @@ local UIS         = game:GetService("UserInputService")
 --   DETECT MOBILE
 -- =====================
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
+
+-- =====================
+--  TOMBOL TURUN GUI
+-- =====================
+local mobileDown = false
+local mobileGui  = nil
+
+local function createDownButton()
+   if not isMobile then return end
+   mobileGui = Instance.new("ScreenGui")
+   mobileGui.Name             = "FlyDownGui"
+   mobileGui.ResetOnSpawn     = false
+   mobileGui.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
+   mobileGui.Parent           = LocalPlayer.PlayerGui
+
+   local btn = Instance.new("TextButton")
+   btn.Size                   = UDim2.new(0, 50, 0, 50)
+   btn.Position               = UDim2.new(1, -65, 0, 15)
+   btn.BackgroundColor3       = Color3.fromRGB(20, 20, 20)
+   btn.BackgroundTransparency = 0.3
+   btn.Text                   = "▼"
+   btn.TextColor3             = Color3.fromRGB(255, 255, 255)
+   btn.TextSize               = 20
+   btn.Font                   = Enum.Font.GothamBold
+   btn.Parent                 = mobileGui
+   Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+   btn.InputBegan:Connect(function(i)
+      if i.UserInputType == Enum.UserInputType.Touch then mobileDown = true end
+   end)
+   btn.InputEnded:Connect(function(i)
+      if i.UserInputType == Enum.UserInputType.Touch then mobileDown = false end
+   end)
+end
+
+local function removeDownButton()
+   mobileDown = false
+   if mobileGui then mobileGui:Destroy(); mobileGui = nil end
+end
+
+-- =====================
+--    FLY FEATURE
+-- =====================
+local flyEnabled  = false
+local flySpeed    = 50
+local bodyGyro, bodyVelocity
+local flyConnection
+local jumpHeld    = false
+local jumpConnRef = nil
+
+local function startFly()
+   local char     = LocalPlayer.Character
+   if not char then return end
+   local hrp      = char:FindFirstChild("HumanoidRootPart")
+   local humanoid = char:FindFirstChild("Humanoid")
+   if not hrp or not humanoid then return end
+
+   humanoid.PlatformStand   = true
+   humanoid.AutoJumpEnabled = false
+
+   bodyGyro           = Instance.new("BodyGyro")
+   bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+   bodyGyro.P         = 9e4
+   bodyGyro.Parent    = hrp
+
+   bodyVelocity          = Instance.new("BodyVelocity")
+   bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+   bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+   bodyVelocity.Parent   = hrp
+
+   jumpConnRef = UIS.JumpRequest:Connect(function()
+      if flyEnabled then jumpHeld = true end
+   end)
+
+   createDownButton()
+
+   local jumpTimer = 0
+   local camera    = workspace.CurrentCamera
+
+   flyConnection = RS.RenderStepped:Connect(function(dt)
+      if not flyEnabled then return end
+      local char2 = LocalPlayer.Character
+      local hum2  = char2 and char2:FindFirstChild("Humanoid")
+      if not hum2 then return end
+
+      local moveDir = Vector3.new(0, 0, 0)
+
+      if isMobile then
+         local md = hum2.MoveDirection
+         if md.Magnitude > 0.1 then
+            moveDir = moveDir + Vector3.new(md.X, 0, md.Z)
+         end
+         if jumpHeld then jumpTimer = 0.5; jumpHeld = false end
+         if jumpTimer > 0 then
+            moveDir   = moveDir + Vector3.new(0, 1, 0)
+            jumpTimer = jumpTimer - dt
+         end
+         if mobileDown then moveDir = moveDir - Vector3.new(0, 1, 0) end
+      else
+         if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector  end
+         if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector  end
+         if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+         if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+         if UIS:IsKeyDown(Enum.KeyCode.Space)       then moveDir = moveDir + Vector3.new(0,  1, 0) end
+         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0,  1, 0) end
+      end
+
+      bodyVelocity.Velocity = moveDir * flySpeed
+      bodyGyro.CFrame       = camera.CFrame
+   end)
+end
+
+local function stopFly()
+   flyEnabled = false
+   jumpHeld   = false
+   if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
+   if jumpConnRef   then jumpConnRef:Disconnect();   jumpConnRef   = nil end
+
+   local char     = LocalPlayer.Character
+   local humanoid = char and char:FindFirstChild("Humanoid")
+   if humanoid then
+      humanoid.PlatformStand   = false
+      humanoid.AutoJumpEnabled = true
+   end
+   if bodyGyro     then bodyGyro:Destroy();     bodyGyro     = nil end
+   if bodyVelocity then bodyVelocity:Destroy(); bodyVelocity = nil end
+
+   removeDownButton()
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+   if flyEnabled then task.wait(0.5); startFly() end
+end)
+
+-- =====================
+--   NOCLIP FEATURE
+-- =====================
+local noclipEnabled    = false
+local noclipConnection
+
+local function startNoclip()
+   noclipConnection = RS.Stepped:Connect(function()
+      local char = LocalPlayer.Character
+      if char then
+         for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+               part.CanCollide = false
+            end
+         end
+      end
+   end)
+end
+
+local function stopNoclip()
+   if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end
+   local char = LocalPlayer.Character
+   if char then
+      for _, part in pairs(char:GetDescendants()) do
+         if part:IsA("BasePart") then part.CanCollide = true end
+      end
+   end
+end
+
+-- =====================
+--    GOD MODE FEATURE
+-- =====================
+local godEnabled    = false
+local godConnection
+
+local function startGod()
+   local char     = LocalPlayer.Character
+   local humanoid = char and char:FindFirstChild("Humanoid")
+
+   godConnection = RS.Heartbeat:Connect(function()
+      if not godEnabled then return end
+      local c   = LocalPlayer.Character
+      local hum = c and c:FindFirstChild("Humanoid")
+      if hum then hum.Health = hum.MaxHealth end
+   end)
+
+   if humanoid then
+      humanoid.HealthChanged:Connect(function(health)
+         if not godEnabled then return end
+         if health < humanoid.MaxHealth then humanoid.Health = humanoid.MaxHealth end
+      end)
+   end
+
+   LocalPlayer.CharacterAdded:Connect(function(newChar)
+      if not godEnabled then return end
+      task.wait(0.1)
+      local hum = newChar:FindFirstChild("Humanoid")
+      if hum then hum.Health = hum.MaxHealth end
+   end)
+end
+
+local function stopGod()
+   if godConnection then godConnection:Disconnect(); godConnection = nil end
+end
+
+-- =====================
+--    ESP + HEALTH BAR
+-- =====================
+local espEnabled = false
+local espData    = {}
+
+local function createESP(player)
+   if player == LocalPlayer then return end
+
+   local function buildESP()
+      task.wait(0.5)
+      if not player.Character then return end
+      local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+      local hum = player.Character:FindFirstChild("Humanoid")
+      if not hrp or not hum then return end
+
+      if espData[player] then
+         if espData[player].highlight then espData[player].highlight:Destroy() end
+         if espData[player].billboard then espData[player].billboard:Destroy() end
+      end
+
+      local highlight               = Instance.new("Highlight")
+      highlight.FillTransparency    = 1
+      highlight.OutlineColor        = Color3.fromRGB(255, 255, 255)
+      highlight.OutlineTransparency = 0
+      highlight.Parent              = player.Character
+
+      local billboard = Instance.new("BillboardGui")
+      billboard.Size        = UDim2.new(0, 160, 0, 80)
+      billboard.StudsOffset = Vector3.new(-4, 2, 0)
+      billboard.AlwaysOnTop = true
+      billboard.Parent      = hrp
+
+      local nameLabel = Instance.new("TextLabel")
+      nameLabel.Size                   = UDim2.new(1, 0, 0, 16)
+      nameLabel.Position               = UDim2.new(0, 0, 0, 0)
+      nameLabel.BackgroundTransparency = 1
+      nameLabel.Text                   = player.Name
+      nameLabel.TextColor3             = Color3.fromRGB(255, 255, 255)
+      nameLabel.TextSize               = 12
+      nameLabel.Font                   = Enum.Font.GothamBold
+      nameLabel.TextStrokeTransparency = 0
+      nameLabel.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+      nameLabel.Parent                 = billboard
+
+      local hpText = Instance.new("TextLabel")
+      hpText.Size                   = UDim2.new(1, 0, 0, 14)
+      hpText.Position               = UDim2.new(0, 0, 0, 16)
+      hpText.BackgroundTransparency = 1
+      hpText.Text                   = "["..math.floor(hum.Health).."]"
+      hpText.TextColor3             = Color3.fromRGB(255, 255, 255)
+      hpText.TextSize               = 11
+      hpText.Font                   = Enum.Font.Gotham
+      hpText.TextStrokeTransparency = 0
+      hpText.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+      hpText.Parent                 = billboard
+
+      local hpBg = Instance.new("Frame")
+      hpBg.Size                   = UDim2.new(0, 8, 0, 60)
+      hpBg.Position               = UDim2.new(0, -14, 0, 10)
+      hpBg.BackgroundColor3       = Color3.fromRGB(30, 30, 30)
+      hpBg.BorderSizePixel        = 0
+      hpBg.Parent                 = billboard
+      Instance.new("UICorner", hpBg).CornerRadius = UDim.new(0, 3)
+
+      local function makeGradientBar(pct)
+         for _, c in pairs(hpBg:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
+         end
+         local fill = Instance.new("Frame")
+         fill.Size                 = UDim2.new(1, 0, pct, 0)
+         fill.Position             = UDim2.new(0, 0, 1 - pct, 0)
+         fill.BackgroundColor3     = Color3.fromRGB(255, 255, 255)
+         fill.BorderSizePixel      = 0
+         fill.Parent               = hpBg
+         Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 3)
+         local gradient = Instance.new("UIGradient")
+         gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   Color3.fromRGB(0,   220, 50)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 200, 0)),
+            ColorSequenceKeypoint.new(1,   Color3.fromRGB(255, 40,  40)),
+         })
+         gradient.Rotation = 90
+         gradient.Parent   = fill
+      end
+
+      makeGradientBar(hum.Health / hum.MaxHealth)
+
+      local distLabel = Instance.new("TextLabel")
+      distLabel.Size                   = UDim2.new(1, 0, 0, 13)
+      distLabel.Position               = UDim2.new(0, 0, 0, 62)
+      distLabel.BackgroundTransparency = 1
+      distLabel.Text                   = "0m"
+      distLabel.TextColor3             = Color3.fromRGB(200, 200, 200)
+      distLabel.TextSize               = 10
+      distLabel.Font                   = Enum.Font.Gotham
+      distLabel.TextStrokeTransparency = 0
+      distLabel.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+      distLabel.Parent                 = billboard
+
+      espData[player] = {
+         highlight       = highlight,
+         billboard       = billboard,
+         hpBg            = hpBg,
+         hpText          = hpText,
+         distLabel       = distLabel,
+         hum             = hum,
+         hrp             = hrp,
+         makeGradientBar = makeGradientBar,
+      }
+
+      hum.HealthChanged:Connect(function(hp)
+         if not espEnabled or not espData[player] then return end
+         makeGradientBar(hp / hum.MaxHealth)
+         hpText.Text = "["..math.floor(hp).."]"
+      end)
+   end
+
+   buildESP()
+   player.CharacterAdded:Connect(function()
+      if espEnabled then buildESP() end
+   end)
+end
+
+local function removeESP(player)
+   if espData[player] then
+      if espData[player].highlight then espData[player].highlight:Destroy() end
+      if espData[player].billboard then espData[player].billboard:Destroy() end
+      espData[player] = nil
+   end
+end
+
+RS.RenderStepped:Connect(function()
+   if not espEnabled then return end
+   local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+   for player, data in pairs(espData) do
+      if data.hrp and data.distLabel and myHrp then
+         data.distLabel.Text = math.floor((myHrp.Position - data.hrp.Position).Magnitude).."m"
+      end
+   end
+end)
 
 -- =====================
 --   GET NEAREST PLAYER
@@ -203,8 +545,7 @@ local function createAimButton()
    btn.Position               = UDim2.new(1, -75, 0.5, -30)
    btn.BackgroundColor3       = Color3.fromRGB(20, 20, 20)
    btn.BackgroundTransparency = 0.3
-   btn.Text                   = "🎯
-AIM"
+   btn.Text                   = "🎯\nAIM"
    btn.TextColor3             = Color3.fromRGB(255, 255, 255)
    btn.TextSize               = 13
    btn.Font                   = Enum.Font.GothamBold
@@ -318,14 +659,190 @@ end
 pcall(applySilentAim)
 
 -- =====================
---      COMBAT TAB
+--    PLAYER TAB
 -- =====================
-local _ = CombatTab:CreateSection("Aim Features")
+local _ = PlayerTab:CreateSection("Player Controls")
 
-CombatTab:CreateToggle({
-   Name = "Aim Lock", 
-   CurrentValue = false, 
-   Flag = "AimlockToggle",
+PlayerTab:CreateToggle({
+   Name = "Fly", CurrentValue = false, Flag = "FlyToggle",
+   Callback = function(value)
+      flyEnabled = value
+      if value then
+         startFly()
+         local hint = isMobile and "Thumbstick = gerak | Jump = naik | ▼ = turun" or "WASD = gerak | Space = naik | Ctrl = turun"
+         Rayfield:Notify({ Title = "Fly ON ✅", Content = hint, Duration = 4 })
+      else
+         stopFly()
+         Rayfield:Notify({ Title = "Fly OFF ❌", Content = "Fly dimatikan!", Duration = 3 })
+      end
+   end,
+})
+
+PlayerTab:CreateSlider({
+   Name = "Fly Speed", Range = {10, 200}, Increment = 10,
+   Suffix = "Speed", CurrentValue = 50, Flag = "FlySpeed",
+   Callback = function(value)
+      flySpeed = value
+      Rayfield:Notify({ Title = "Fly Speed", Content = "Kecepatan: "..value, Duration = 2 })
+   end,
+})
+
+PlayerTab:CreateToggle({
+   Name = "Noclip", CurrentValue = false, Flag = "NoclipToggle",
+   Callback = function(value)
+      noclipEnabled = value
+      if value then startNoclip(); Rayfield:Notify({ Title = "Noclip ON ✅", Content = "Kamu bisa tembus dinding!", Duration = 3 })
+      else stopNoclip(); Rayfield:Notify({ Title = "Noclip OFF ❌", Content = "Collision dikembalikan!", Duration = 3 }) end
+   end,
+})
+
+PlayerTab:CreateToggle({
+   Name = "God Mode", CurrentValue = false, Flag = "GodToggle",
+   Callback = function(value)
+      godEnabled = value
+      if value then startGod(); Rayfield:Notify({ Title = "God Mode ON ✅", Content = "Kamu sekarang kebal!", Duration = 3 })
+      else stopGod(); Rayfield:Notify({ Title = "God Mode OFF ❌", Content = "God Mode dimatikan!", Duration = 3 }) end
+   end,
+})
+
+PlayerTab:CreateButton({
+   Name = "Reset Character",
+   Callback = function()
+      local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+      if hum then hum.Health = 0 end
+      Rayfield:Notify({ Title = "Reset", Content = "Character di-reset!", Duration = 3 })
+   end,
+})
+
+local _ = PlayerTab:CreateSection("Teleport Area")
+
+PlayerTab:CreateButton({
+   Name = "Teleport ke Spawn",
+   Callback = function()
+      local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+      if hrp then hrp.CFrame = CFrame.new(-36, 58, 79); Rayfield:Notify({ Title = "Teleport ✅", Content = "Berhasil teleport ke Spawn!", Duration = 3 }) end
+   end,
+})
+
+PlayerTab:CreateButton({
+   Name = "Teleport ke Celestial",
+   Callback = function()
+      local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+      if hrp then hrp.CFrame = CFrame.new(-1097, 58, 3); Rayfield:Notify({ Title = "Teleport ✅", Content = "Berhasil teleport ke Celestial!", Duration = 3 }) end
+   end,
+})
+
+PlayerTab:CreateButton({
+   Name = "📍 Cek Posisi Saya",
+   Callback = function()
+      local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+      if hrp then
+         local pos = hrp.Position
+         local msg = "X: "..math.floor(pos.X).." | Y: "..math.floor(pos.Y).." | Z: "..math.floor(pos.Z)
+         print("[POSISI] "..msg)
+         Rayfield:Notify({ Title = "Posisi Kamu 📍", Content = msg, Duration = 6 })
+      end
+   end,
+})
+
+-- =====================
+--   BRAINROT COLLECTOR
+-- =====================
+local _ = PlayerTab:CreateSection("Brainrot Collector")
+
+local collectEnabled  = false
+local collectConn     = nil
+local collectKeywords = {
+   "secret", "celestial", "lucky", "admin", "divine",
+   "luckyblock", "lucky_block", "brainrot"
+}
+
+local function isBrainrot(name)
+   local lower = name:lower()
+   for _, kw in pairs(collectKeywords) do
+      if lower:find(kw) then return true end
+   end
+   return false
+end
+
+PlayerTab:CreateToggle({
+   Name = "Auto Collect Brainrot Rare", CurrentValue = false, Flag = "AutoCollect",
+   Callback = function(value)
+      collectEnabled = value
+      if value then
+         collectConn = RS.Heartbeat:Connect(function()
+            if not collectEnabled then return end
+            local char = LocalPlayer.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            for _, obj in pairs(workspace:GetDescendants()) do
+               if (obj:IsA("Model") or obj:IsA("BasePart")) and isBrainrot(obj.Name) then
+                  local objPos
+                  if obj:IsA("Model") then
+                     local p = obj.PrimaryPart or obj:FindFirstChildOfClass("BasePart")
+                     if p then objPos = p.Position end
+                  else
+                     objPos = obj.Position
+                  end
+                  if objPos and (hrp.Position - objPos).Magnitude < 100 then
+                     hrp.CFrame = CFrame.new(objPos + Vector3.new(0, 3, 0))
+                     task.wait(0.05)
+                  end
+               end
+            end
+         end)
+         Rayfield:Notify({ Title = "Auto Collect ON ✅", Content = "Ngumpulin Secret/Celestial/Divine/Admin/Lucky!", Duration = 3 })
+      else
+         if collectConn then collectConn:Disconnect(); collectConn = nil end
+         Rayfield:Notify({ Title = "Auto Collect OFF ❌", Content = "Auto collect dimatikan!", Duration = 3 })
+      end
+   end,
+})
+
+PlayerTab:CreateButton({
+   Name = "🔍 Scan Nama Brainrot",
+   Callback = function()
+      print("====== SCAN BRAINROT ======")
+      local count = 0
+      for _, obj in pairs(workspace:GetDescendants()) do
+         if obj:IsA("Model") or obj:IsA("BasePart") then
+            local name = obj.Name:lower()
+            if name:find("secret") or name:find("celestial") or name:find("lucky")
+            or name:find("admin") or name:find("divine") or name:find("brainrot")
+            or name:find("rare") or name:find("item") or name:find("drop") then
+               print("[FOUND] "..obj.ClassName.." | Name: "..obj.Name)
+               count = count + 1
+            end
+         end
+      end
+      print("====== TOTAL: "..count.." ======")
+      Rayfield:Notify({ Title = "Scan Selesai 🔍", Content = "Ketemu "..count.." object! Cek console.", Duration = 4 })
+   end,
+})
+
+-- =====================
+--      COMBAT
+-- =====================
+local _ = PlayerTab:CreateSection("Combat")
+
+PlayerTab:CreateToggle({
+   Name = "ESP + Health Bar", CurrentValue = false, Flag = "ESPToggle",
+   Callback = function(value)
+      espEnabled = value
+      if value then
+         for _, player in pairs(Players:GetPlayers()) do createESP(player) end
+         Players.PlayerAdded:Connect(createESP)
+         Players.PlayerRemoving:Connect(removeESP)
+         Rayfield:Notify({ Title = "ESP ON ✅", Content = "ESP + bar darah aktif!", Duration = 3 })
+      else
+         for _, player in pairs(Players:GetPlayers()) do removeESP(player) end
+         Rayfield:Notify({ Title = "ESP OFF ❌", Content = "ESP dimatikan!", Duration = 3 })
+      end
+   end,
+})
+
+PlayerTab:CreateToggle({
+   Name = "Aim Lock", CurrentValue = false, Flag = "AimlockToggle",
    Callback = function(value)
       aimlockEnabled = value
       if value then
@@ -339,23 +856,17 @@ CombatTab:CreateToggle({
    end,
 })
 
-CombatTab:CreateSlider({
-   Name = "Aim Smoothness", 
-   Range = {1, 10}, 
-   Increment = 1,
-   Suffix = "", 
-   CurrentValue = 2, 
-   Flag = "AimSmooth",
+PlayerTab:CreateSlider({
+   Name = "Aim Smoothness", Range = {1, 10}, Increment = 1,
+   Suffix = "", CurrentValue = 2, Flag = "AimSmooth",
    Callback = function(value)
       smoothness = value / 10
       Rayfield:Notify({ Title = "Smoothness", Content = "Smooth: "..value, Duration = 2 })
    end,
 })
 
-CombatTab:CreateToggle({
-   Name = "Silent Aim", 
-   CurrentValue = false, 
-   Flag = "SilentAim",
+PlayerTab:CreateToggle({
+   Name = "Silent Aim", CurrentValue = false, Flag = "SilentAim",
    Callback = function(value)
       silentAimEnabled   = value
       silentLine.Visible = value
@@ -369,17 +880,99 @@ CombatTab:CreateToggle({
 })
 
 -- =====================
---    PLAYER TAB (MINIMAL)
+--    VISUAL TAB
 -- =====================
-local _ = PlayerTab:CreateSection("Player Controls")
+local _ = VisualTab:CreateSection("Visual Controls")
 
-PlayerTab:CreateButton({
-   Name = "Reset Character",
+VisualTab:CreateButton({
+   Name = "Fullbright",
    Callback = function()
-      local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-      if hum then 
-         hum.Health = 0 
-         Rayfield:Notify({ Title = "Reset", Content = "Character di-reset!", Duration = 3 })
+      game.Lighting.Brightness = 10
+      game.Lighting.ClockTime  = 14
+      Rayfield:Notify({ Title = "Fullbright", Content = "Lighting ke maksimal!", Duration = 3 })
+   end,
+})
+
+VisualTab:CreateButton({
+   Name = "Reset Lighting",
+   Callback = function()
+      game.Lighting.Brightness = 1
+      game.Lighting.ClockTime  = 14
+      Rayfield:Notify({ Title = "Reset Lighting", Content = "Lighting normal!", Duration = 3 })
+   end,
+})
+
+-- =====================
+--      MISC TAB
+-- =====================
+local _ = MiscTab:CreateSection("Misc")
+
+MiscTab:CreateButton({
+   Name = "Copy Player Name",
+   Callback = function()
+      local name = LocalPlayer.Name
+      setclipboard(name)
+      Rayfield:Notify({ Title = "Copied!", Content = "Username: "..name.." disalin!", Duration = 3 })
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "Rejoin Server",
+   Callback = function()
+      game:GetService("TeleportService"):Teleport(game.PlaceId)
+   end,
+})
+
+local _ = MiscTab:CreateSection("Team Info")
+
+MiscTab:CreateButton({
+   Name = "Cek Team Saya",
+   Callback = function()
+      if LocalPlayer.Team then
+         Rayfield:Notify({ Title = "Team Kamu 🏳️", Content = "Team: "..LocalPlayer.Team.Name.." | Warna: "..tostring(LocalPlayer.TeamColor), Duration = 5 })
+      else
+         Rayfield:Notify({ Title = "Team Kamu", Content = "Kamu tidak ada di team manapun!", Duration = 3 })
+      end
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "Cek Team Semua Player",
+   Callback = function()
+      for _, player in pairs(Players:GetPlayers()) do
+         print("[Team] "..player.Name.." → "..(player.Team and player.Team.Name or "No Team"))
+      end
+      Rayfield:Notify({ Title = "Team List 📋", Content = "Cek console executor!", Duration = 5 })
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "Cek Team Player Terdekat",
+   Callback = function()
+      local char = LocalPlayer.Character
+      if not char then return end
+      local hrp = char:FindFirstChild("HumanoidRootPart")
+      if not hrp then return end
+
+      local closestPlayer = nil
+      local closestDist   = math.huge
+
+      for _, player in pairs(Players:GetPlayers()) do
+         if player ~= LocalPlayer and player.Character then
+            local otherHrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if otherHrp then
+               local dist = (hrp.Position - otherHrp.Position).Magnitude
+               if dist < closestDist then closestDist = dist; closestPlayer = player end
+            end
+         end
+      end
+
+      if closestPlayer then
+         local teamName = closestPlayer.Team and closestPlayer.Team.Name or "No Team"
+         local isEnemy  = LocalPlayer.Team ~= closestPlayer.Team
+         Rayfield:Notify({ Title = "Player Terdekat 🎯", Content = closestPlayer.Name.." | Team: "..teamName.." | "..(isEnemy and "⚔️ MUSUH!" or "🤝 TEMAN!"), Duration = 5 })
+      else
+         Rayfield:Notify({ Title = "Tidak Ada Player", Content = "Tidak ada player di sekitar!", Duration = 3 })
       end
    end,
 })
